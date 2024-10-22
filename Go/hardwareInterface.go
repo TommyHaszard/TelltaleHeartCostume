@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 	"time"
-
+	"os/signal"
+	"syscall"
 	"github.com/stianeikeland/go-rpio/v4"
 )
 
@@ -21,13 +22,14 @@ type Hardware struct {
 }
 
 func (h *Hardware) init(audioFile string, dataChannel chan int) {
-	h.pin = rpio.Pin(10)
+	h.pin = rpio.Pin(13)
 	h.audioFile = audioFile
 	h.beat = 60
 	h.dataChannel = dataChannel
+	fmt.Println("init hardware")
 }
 
-func (h *Hardware) function_loop() {
+func (h *Hardware) loop_test() {
 	if err := rpio.Open(); err != nil {
 		fmt.Println(err)
 		os.Exit(1)
@@ -44,6 +46,17 @@ func (h *Hardware) function_loop() {
 }
 
 func (h *Hardware) ReceiveAndFade() {
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	if err := rpio.Open(); err != nil {
+		fmt.Println(err)
+		os.Exit(1)
+	}
+	defer rpio.Close()
+	h.pin.Mode(rpio.Pwm)
+	h.pin.Freq(1000)
+	h.pin.DutyCycle(0, MAX_BRIGHTNESS)
+
 	for {
 		select {
 		case beat, ok := <-h.dataChannel: // Wait for the trigger from the sender
@@ -52,7 +65,9 @@ func (h *Hardware) ReceiveAndFade() {
 				return
 			}
 			h.beat = beat
-
+		case <-sigs:
+			rpio.Close()
+			fmt.Println("HANDLING SIG")
 		default:
 			fmt.Println("Starting fade cycle...")
 			speed := float64(60000 / h.beat)            // speed in ms where 60000 = 60 seconds so 70bpm will equal 60000 / 70 = 857ms per beat
@@ -64,13 +79,13 @@ func (h *Hardware) ReceiveAndFade() {
 			pWaveFadeInLength := uint32(pWave * .70)
 			pWaveFadeOutLength := uint32(pWave * .30)
 
-			fadeInAndOut(pWaveFadeInLength, pWaveFadeOutLength, pWaveBrightness)
+			h.fadeInAndOut(pWaveFadeInLength, pWaveFadeOutLength, pWaveBrightness)
 
 			rWaveBrightness := uint32(MAX_BRIGHTNESS)
 			rWaveFadeInLength := uint32(rWave * .50)
 			rWaveFadeOutLength := uint32(rWave * .50)
 
-			fadeInAndOut(rWaveFadeInLength, rWaveFadeOutLength, rWaveBrightness)
+			h.fadeInAndOut(rWaveFadeInLength, rWaveFadeOutLength, rWaveBrightness)
 
 			if h.beat == 0 {
 				// make sure there's a reading
@@ -82,15 +97,15 @@ func (h *Hardware) ReceiveAndFade() {
 	}
 }
 
-func fadeInAndOut(fadeInLength, fadeOutLength, brightness uint32) {
+func (h *Hardware) fadeInAndOut(fadeInLength, fadeOutLength, brightness uint32) {
 	for i := uint32(0); i <= fadeInLength; i++ { // increasing brightness
 		fadeInRate := i * (brightness / fadeInLength)
-		//h.pin.DutyCycle(fadeInRate, brightness)
-		fmt.Println("Fade in rate {}/{}", fadeInRate, brightness)
+		h.pin.DutyCycle(fadeInRate, brightness)
+		fmt.Println("Fade in rate: ", fadeInRate, brightness)
 	}
 	for i := uint32(0); i <= fadeOutLength; i++ { // decreasing brightness
 		fadeOutRate := i * (brightness / fadeOutLength)
-		//h.pin.DutyCycle(brightness-fadeOutRate, brightness)
-		fmt.Println("Fade out rate {}/{}", fadeOutRate, brightness)
+		h.pin.DutyCycle(brightness-fadeOutRate, brightness)
+		fmt.Println("Fade out rate: ", fadeOutRate, brightness)
 	}
 }

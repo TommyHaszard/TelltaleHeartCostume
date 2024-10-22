@@ -11,7 +11,9 @@ func main() {
 	hardwareInterface := Hardware{}
 	hardwareInterface.init("string", channel)
 	heartbeat.init(channel)
+	go hardwareInterface.ReceiveAndFade()
+	// go hardwareInterface.loop_test()
 	http.Handle("/heartbeat", heartbeat)
 	log.Print("Starting server...")
-	log.Fatal(http.ListenAndServe("192.168.1.104:8080", nil))
+	log.Fatal(http.ListenAndServe("192.168.1.119:8080", nil))
 }
