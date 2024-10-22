@@ -6,7 +6,7 @@ import (
 )
 
 func main() {
-	channel := make(chan int)
+	channel := make(chan int, 1)
 	heartbeat := Heartbeat{}
 	hardwareInterface := Hardware{}
 	hardwareInterface.init("string", channel)

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"strconv"
+	"fmt"
 )
 
 type HeartbeatJson struct {
@@ -22,7 +23,7 @@ func (heartbeat *Heartbeat) init(dataChannel chan int) {
 	// get audio file and set that up
 	heartbeat.averageOver = 10
 	heartbeat.dataChannel = dataChannel
-
+	heartbeat.currHeartbeat = 60
 }
 
 func (h *Heartbeat) recieveHeartbeat(value int) {
@@ -30,9 +31,10 @@ func (h *Heartbeat) recieveHeartbeat(value int) {
 		h.averageOver = 10
 	}
 	// get the trailingAvg
-	h.trailingHeartbeat = h.currHeartbeat*(h.averageOver-1)/h.averageOver + value/h.averageOver
+	h.trailingHeartbeat = value
 	// if trailing is significantly different then change currHeartbeat
-	if float64(h.trailingHeartbeat)*1.1 > float64(h.currHeartbeat) || float64(h.trailingHeartbeat)*.9 < float64(h.currHeartbeat) {
+	if float64(h.trailingHeartbeat)*1.2 > float64(h.currHeartbeat) || float64(h.trailingHeartbeat)*.7 < float64(h.currHeartbeat) {
+		fmt.Println("Heartbeat received from Watch: ", h.trailingHeartbeat)
 		h.currHeartbeat = h.trailingHeartbeat
 		h.dataChannel <- h.currHeartbeat
 	}
